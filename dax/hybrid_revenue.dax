@@ -1,0 +1,49 @@
+/* «Псевдо-выручка» из заказов (если нужно подменять дни без реализаций) */
+Выручка (Orders) =
+CALCULATE(
+    SUMX(
+        'f_Orders',
+        'f_Orders'[total_price] * ( 1 - DIVIDE('f_Orders'[discount_percent], 100) )
+    ),
+    USERELATIONSHIP('Календарь'[date], 'f_Orders'[date])
+)
+
+/* Гибрид: Realization + Orders-fallback для дат, где реализаций нет */
+Выручка (гибрид) =
+VAR SelDates = VALUES('Календарь'[date])
+
+VAR RealDatesThisPeriod =
+    CALCULATETABLE(
+        DISTINCT('f_Realization'[date]),
+        TREATAS(SelDates, 'f_Realization'[date])
+    )
+
+VAR OrdersOnlyDates = EXCEPT(SelDates, RealDatesThisPeriod)
+
+VAR v_real =
+    CALCULATE(
+        [Выручка WB],
+        TREATAS(RealDatesThisPeriod, 'f_Realization'[date])
+    )
+
+VAR v_orders =
+    CALCULATE(
+        [Выручка (Orders)],
+        TREATAS(OrdersOnlyDates, 'f_Orders'[date])
+    )
+
+RETURN COALESCE(v_real, 0) + COALESCE(v_orders, 0)
+
+/* «Предыдущий равный период» относительно выбранного окна */
+Выручка (гибрид, пред. равный период) =
+VAR d1  = MIN('Календарь'[date])
+VAR d2  = MAX('Календарь'[date])
+VAR len = COUNTROWS( DATESBETWEEN('Календарь'[date], d1, d2) )
+RETURN
+    CALCULATE(
+        [Выручка (гибрид)],
+        DATESBETWEEN('Календарь'[date], d1 - len, d1 - 1)
+    )
+
+Δ Выручка (гибрид, тек - пред) =
+[Выручка (гибрид)] - COALESCE([Выручка (гибрид, пред. равный период)], 0)
