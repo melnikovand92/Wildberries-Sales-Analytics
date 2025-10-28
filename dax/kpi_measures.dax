@@ -1,0 +1,82 @@
+/* ====== Базовые KPI на f_Realization ====== */
+
+Знак операции =
+VAR t = SELECTEDVALUE('f_Realization'[doc_type_name])
+RETURN IF(t = "Продажа", 1, IF(t = "Возврат", -1, 0))
+
+Выручка WB =
+SUMX(
+    'f_Realization',
+    [Знак операции] * 'f_Realization'[retail_amount]
+)
+
+Комиссия WB =
+SUMX(
+    'f_Realization',
+    [Знак операции] * 'f_Realization'[ppvz_sales_commission]
+)
+
+Комиссия WB % =
+DIVIDE([Комиссия WB], [Выручка WB])
+
+Логистика =
+SUMX(
+    'f_Realization',
+    [Знак операции] * 'f_Realization'[delivery_rub]
+)
+
+/* COGS с фолбэком: сначала по артикулу, потом по штрих-коду */
+COGS =
+SUMX(
+    'f_Realization',
+    VAR art = 'f_Realization'[supplierArticle_norm]
+    VAR bc  = 'f_Realization'[barcode]
+    VAR c_sa =
+        LOOKUPVALUE(
+            'dim_COGS'[Себестоимость],
+            'dim_COGS'[supplierArticle_norm], art
+        )
+    VAR c_bc =
+        LOOKUPVALUE(
+            'dim_COGS'[Себестоимость],
+            'dim_COGS'[Штрих-код], bc
+        )
+    VAR cost = COALESCE(c_sa, c_bc)
+    RETURN 'f_Realization'[quantity] * COALESCE(cost, 0)
+)
+
+/* Нетто и маржинальность (методика «нетто из брутто») */
+Выручка, нетто = [Выручка WB] - [Комиссия WB] - [Логистика]
+Валовая прибыль = [Выручка, нетто] - [COGS]
+Рентабельность % = DIVIDE([Валовая прибыль], [Выручка WB])
+
+/* Заказы / Средний чек на базе f_Orders */
+Заказов, шт = DISTINCTCOUNT('f_Orders'[odid])
+Средний чек = DIVIDE([Выручка WB], [Заказов, шт])
+
+/* ====== Вспомогательные для QA / диагностики ====== */
+
+Строки f_Realization = COUNTROWS('f_Realization')
+Строки f_Orders      = COUNTROWS('f_Orders')
+
+/* COGS: нет сопоставления (шт) — сколько строк факта без найденной себестоимости */
+COGS: нет сопоставления (шт) =
+SUMX(
+    'f_Realization',
+    VAR art = 'f_Realization'[supplierArticle_norm]
+    VAR bc  = 'f_Realization'[barcode]
+    VAR c_sa =
+        LOOKUPVALUE(
+            'dim_COGS'[Себестоимость],
+            'dim_COGS'[supplierArticle_norm], art
+        )
+    VAR c_bc =
+        LOOKUPVALUE(
+            'dim_COGS'[Себестоимость],
+            'dim_COGS'[Штрих-код], bc
+        )
+    RETURN IF( ISBLANK(c_sa) && ISBLANK(c_bc), 1, 0 )
+)
+
+Покрытие COGS, % =
+1 - DIVIDE([COGS: нет сопоставления (шт)], [Строки f_Realization])
