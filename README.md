@@ -1,6 +1,6 @@
 # Аналитика продаж для компании ИП Иванова (Wildberries)
 
-[**⬇️ Скачать отчёт (.pbix)**](pbix/WB_Sales_Analytics_IP_Ivanova.pbix)
+[**⬇️ Скачать отчёт (.pbix)**](pbix/WB_Sales_Analytics_IP_Ivanova.pbix?raw=1)
 
 > Power BI Desktop: **2.148.878.0 (Октябрь 2025)**  
 > Демо-проект: финансы, логистика, рентабельность, TOP-ы рост/падение, карта продаж, QA-страница.
